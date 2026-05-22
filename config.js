@@ -5,5 +5,5 @@
  * Copy config.example.js if this file is missing.
  */
 window.DASTOOR_CONFIG = {
-  GOOGLE_CLIENT_ID: ""
+  GOOGLE_CLIENT_ID: "825376611288-ed75ga3dg3t80ig2jnnnj04fjp59e5t6.apps.googleusercontent.com"
 };
