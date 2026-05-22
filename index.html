@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dastoor-E-Qalam — customised Arabic calligraphy frames, keychains, and bookmarks.">
+  <title>Dastoor-E-Qalam | Arabic Calligraphy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main">
+    <a class="nav-brand" href="#top">Dastoor-E-Qalam</a>
+    <div class="nav-links">
+      <a href="#catalog">Shop</a>
+      <a href="#about">About</a>
+      <a href="#contact">Order</a>
+      <button type="button" class="btn-nav-admin" id="admin-signin-btn" hidden>Owner sign in</button>
+      <div class="admin-chip hidden" id="admin-chip">
+        <span id="admin-email-display"></span>
+        <button type="button" class="btn-text" id="admin-signout-btn">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="hero-pattern" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <p class="hero-arabic" lang="ar" dir="rtl">دستور القلم</p>
+      <p class="tagline">Customised Arabic calligraphy</p>
+      <h1>Dastoor-E-Qalam</h1>
+      <p class="subtitle">Frames · Keychains · Bookmarks</p>
+      <a class="btn hero-cta" href="#catalog">View collection</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="catalog" id="catalog" aria-labelledby="catalog-heading">
+      <div class="section-header">
+        <h2 id="catalog-heading">Our Collection</h2>
+        <div class="filters" id="category-filters" role="tablist" aria-label="Filter by category">
+          <button type="button" class="filter-btn active" data-category="all" role="tab" aria-selected="true">All</button>
+          <button type="button" class="filter-btn" data-category="Frame" role="tab">Frames</button>
+          <button type="button" class="filter-btn" data-category="Keychain" role="tab">Keychains</button>
+          <button type="button" class="filter-btn" data-category="Bookmark" role="tab">Bookmarks</button>
+        </div>
+      </div>
+
+      <div class="product-grid" id="product-grid" aria-live="polite"></div>
+      <p class="empty-state hidden" id="empty-state">No items in this category yet. Check back soon.</p>
+    </section>
+
+    <section class="about" id="about">
+      <h2>About the studio</h2>
+      <p>
+        <strong>Dastoor-E-Qalam</strong> crafts personalised Arabic calligraphy for everyday keepsakes —
+        framed verses for your home, engraved keychains, and bookmarks for readers who cherish beautiful script.
+        Every piece is made to order with your chosen name, ayah, or phrase.
+      </p>
+    </section>
+
+    <section class="contact" id="contact">
+      <h2>Place an order</h2>
+      <p>
+        Browse the catalogue above, then message us with the product label, size (if applicable), and your custom text.
+      </p>
+      <a class="btn" href="mailto:amaanaj04@gmail.com?subject=Dastoor-E-Qalam%20Order">Email to order</a>
+    </section>
+
+    <section class="admin-section hidden" id="admin-section" aria-labelledby="admin-heading">
+      <div class="section-header">
+        <h2 id="admin-heading">Manage catalogue</h2>
+        <button type="button" class="btn secondary" id="toggle-admin-btn" aria-expanded="false" aria-controls="admin-panel">
+          Add product
+        </button>
+      </div>
+
+      <div class="admin-panel hidden" id="admin-panel">
+        <form id="product-form" class="product-form">
+          <input type="hidden" id="edit-id" value="">
+          <label>
+            Label (product name)
+            <input id="name" type="text" placeholder="e.g., Ayat ul Kursi Frame" required maxlength="120">
+          </label>
+          <label>
+            Category
+            <select id="category" required>
+              <option value="Frame">Frame</option>
+              <option value="Keychain">Keychain</option>
+              <option value="Bookmark">Bookmark</option>
+            </select>
+          </label>
+          <label>
+            Price (Rs.)
+            <input id="price" type="number" min="1" step="1" placeholder="500" required>
+          </label>
+          <label class="full-width">
+            Photograph
+            <input id="image" type="file" accept="image/*">
+            <span class="field-hint" id="image-hint">Required for new products. Leave empty when only editing label or price.</span>
+          </label>
+          <div class="preview-wrap full-width hidden" id="preview-wrap">
+            <img id="image-preview" class="image-preview" alt="Selected product preview">
+          </div>
+          <div class="form-actions full-width">
+            <button type="submit" class="btn" id="form-submit-btn">Add to catalogue</button>
+            <button type="button" class="btn secondary hidden" id="cancel-edit-btn">Cancel edit</button>
+          </div>
+        </form>
+
+        <div class="admin-tools">
+          <button type="button" class="btn secondary" id="export-btn">Export catalogue</button>
+          <label class="import-label btn secondary">
+            Import catalogue
+            <input type="file" id="import-input" accept="application/json" hidden>
+          </label>
+          <button type="button" class="btn danger" id="reset-btn">Reset to samples</button>
+        </div>
+        <p class="note">
+          Changes are saved in this browser. Use <strong>Export catalogue</strong> before deploying updates so visitors see the same products when you import on another device.
+        </p>
+      </div>
+    </section>
+
+    <section class="setup-notice hidden" id="setup-notice">
+      <h2>Owner setup required</h2>
+      <p>
+        To sign in with Google, add your OAuth Client ID in <code>config.js</code>.
+        See <code>README.md</code> for step-by-step instructions.
+      </p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p><strong>Dastoor-E-Qalam</strong> · دستور القلم</p>
+    <p class="footer-note">© <span id="year"></span> · Handcrafted Arabic calligraphy</p>
+  </footer>
+
+  <!-- Google Sign-In (loaded after config) -->
+  <div id="g_id_onload"
+    data-auto_prompt="false"
+    data-callback="handleGoogleCredential">
+  </div>
+
+  <dialog class="auth-dialog" id="auth-dialog">
+    <div class="auth-dialog-inner">
+      <h3>Owner access</h3>
+      <p>Sign in with the authorised Google account to edit labels and prices.</p>
+      <div id="google-signin-container"></div>
+      <button type="button" class="btn secondary auth-close" id="auth-dialog-close">Close</button>
+    </div>
+  </dialog>
+
+  <dialog class="edit-dialog" id="edit-dialog">
+    <form id="quick-edit-form" class="quick-edit-form">
+      <h3>Edit product</h3>
+      <input type="hidden" id="quick-edit-id">
+      <label>
+        Label
+        <input id="quick-edit-name" type="text" required maxlength="120">
+      </label>
+      <label>
+        Price (Rs.)
+        <input id="quick-edit-price" type="number" min="1" step="1" required>
+      </label>
+      <div class="dialog-actions">
+        <button type="submit" class="btn">Save</button>
+        <button type="button" class="btn secondary" id="quick-edit-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="product-card-template">
+    <article class="card">
+      <div class="card-image-wrap">
+        <img class="card-image" src="" alt="" loading="lazy">
+      </div>
+      <div class="card-content">
+        <span class="card-badge"></span>
+        <h3 class="card-title"></h3>
+        <p class="card-price"></p>
+        <div class="card-admin-actions hidden">
+          <button type="button" class="btn secondary small edit-btn">Edit label &amp; price</button>
+          <button type="button" class="btn danger small delete-btn">Remove</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="script.js"></script>
+</body>
+</html>
