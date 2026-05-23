@@ -1,6 +1,8 @@
 const STORAGE_KEY = "dastoorEQalamProducts";
+const PUBLISH_PENDING_KEY = "dastoorEQalamPublishPending";
 const AUTH_SESSION_KEY = "dastoorEQalamAdminSession";
 const ADMIN_EMAIL = "amaanaj04@gmail.com";
+const CATALOGUE_FILE = "catalogue.json";
 
 const sampleProducts = [
   {
@@ -62,21 +64,43 @@ const quickEditId = document.getElementById("quick-edit-id");
 const quickEditName = document.getElementById("quick-edit-name");
 const quickEditPrice = document.getElementById("quick-edit-price");
 const quickEditCancel = document.getElementById("quick-edit-cancel");
+const publishBanner = document.getElementById("publish-banner");
+const publishBtn = document.getElementById("publish-btn");
+const publishBtnPanel = document.getElementById("publish-btn-panel");
+const publishHeaderBtn = document.getElementById("publish-header-btn");
+const publishDoneBtn = document.getElementById("publish-done-btn");
 
-let products = loadProducts();
+let products = [...sampleProducts];
+let liveCatalogueSnapshot = "";
 let activeCategory = "all";
 let adminPanelOpen = false;
 let isAdmin = false;
 let googleInitialized = false;
+let pendingLocalDraft = null;
 
 const config = window.DASTOOR_CONFIG || {};
 const googleClientId = (config.GOOGLE_CLIENT_ID || "").trim();
 
 yearEl.textContent = new Date().getFullYear();
 
-renderProducts();
-restoreAdminSession();
-initGoogleAuth();
+initApp();
+
+async function initApp() {
+  const fromServer = await fetchLiveCatalogue();
+  if (fromServer.length > 0) {
+    products = fromServer;
+    liveCatalogueSnapshot = catalogueFingerprint(products);
+  } else {
+    products = [...sampleProducts];
+    liveCatalogueSnapshot = catalogueFingerprint(sampleProducts);
+  }
+
+  pendingLocalDraft = loadLocalDraft();
+  renderProducts();
+  restoreAdminSession();
+  initGoogleAuth();
+  updatePublishBanner();
+}
 
 toggleAdminBtn.addEventListener("click", () => {
   if (!isAdmin) return;
@@ -168,15 +192,16 @@ cancelEditBtn.addEventListener("click", resetProductForm);
 
 exportBtn.addEventListener("click", () => {
   if (!isAdmin) return;
-  const blob = new Blob([JSON.stringify(products, null, 2)], {
-    type: "application/json"
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "dastoor-e-qalam-catalogue.json";
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadCatalogueFile("dastoor-e-qalam-backup.json");
+});
+
+for (const btn of [publishBtn, publishBtnPanel, publishHeaderBtn]) {
+  btn?.addEventListener("click", publishToWebsite);
+}
+
+publishDoneBtn?.addEventListener("click", () => {
+  localStorage.removeItem(PUBLISH_PENDING_KEY);
+  updatePublishBanner();
 });
 
 importInput.addEventListener("change", async (event) => {
@@ -191,9 +216,9 @@ importInput.addEventListener("change", async (event) => {
     products = parsed.filter(isValidProduct);
     saveProducts();
     renderProducts();
-    alert("Catalogue imported successfully.");
+    alert("Backup imported. Click Publish to website so everyone can see these products.");
   } catch (error) {
-    alert("Could not import file. Please use a valid export JSON.");
+    alert("Could not import file. Please use a valid JSON backup.");
     console.error(error);
   }
   importInput.value = "";
@@ -201,7 +226,9 @@ importInput.addEventListener("change", async (event) => {
 
 resetBtn.addEventListener("click", () => {
   if (!isAdmin) return;
-  if (!confirm("Reset catalogue to sample products? This cannot be undone.")) return;
+  if (!confirm("Reset catalogue to sample products? You must Publish to website for visitors to see the change.")) {
+    return;
+  }
   products = [...sampleProducts];
   saveProducts();
   renderProducts();
@@ -368,6 +395,7 @@ function setAdminState(admin, session = null) {
 
   if (admin && session) {
     adminEmailDisplay.textContent = session.email;
+    offerLocalDraftRecovery();
   }
 
   if (!admin) {
@@ -379,6 +407,29 @@ function setAdminState(admin, session = null) {
   }
 
   renderProducts();
+  updatePublishBanner();
+}
+
+function offerLocalDraftRecovery() {
+  if (!pendingLocalDraft || pendingLocalDraft.length === 0) return;
+  if (catalogueFingerprint(pendingLocalDraft) === catalogueFingerprint(products)) {
+    pendingLocalDraft = null;
+    return;
+  }
+
+  const useDraft = confirm(
+    "This browser has products you added earlier that are not on the live website yet.\n\n" +
+      "Click OK to load them so you can Publish to website.\n" +
+      "Click Cancel to keep showing the live catalogue."
+  );
+
+  if (useDraft) {
+    products = pendingLocalDraft;
+    saveProducts();
+    renderProducts();
+  }
+
+  pendingLocalDraft = null;
 }
 
 function signOutAdmin() {
@@ -447,23 +498,85 @@ function isValidProduct(item) {
   );
 }
 
-function loadProducts() {
+async function fetchLiveCatalogue() {
+  try {
+    const res = await fetch(`${CATALOGUE_FILE}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const parsed = await res.json();
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidProduct);
+  } catch (error) {
+    console.warn("Could not load live catalogue:", error);
+    return [];
+  }
+}
+
+function loadLocalDraft() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleProducts));
-      return [...sampleProducts];
-    }
+    if (!stored) return null;
     const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [...sampleProducts];
-  } catch (error) {
-    console.error("Failed to load products:", error);
-    return [...sampleProducts];
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.filter(isValidProduct);
+  } catch {
+    return null;
   }
 }
 
 function saveProducts() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  if (isAdmin && catalogueFingerprint(products) !== liveCatalogueSnapshot) {
+    localStorage.setItem(PUBLISH_PENDING_KEY, "1");
+  }
+  updatePublishBanner();
+}
+
+function catalogueFingerprint(list) {
+  return JSON.stringify(
+    list.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      price: p.price,
+      image: p.image
+    }))
+  );
+}
+
+function needsPublish() {
+  if (!isAdmin) return false;
+  if (localStorage.getItem(PUBLISH_PENDING_KEY) === "1") return true;
+  return catalogueFingerprint(products) !== liveCatalogueSnapshot;
+}
+
+function updatePublishBanner() {
+  const show = isAdmin && needsPublish();
+  publishBanner?.classList.toggle("hidden", !show);
+  publishHeaderBtn?.classList.toggle("hidden", !isAdmin);
+}
+
+function publishToWebsite() {
+  if (!isAdmin) return;
+  downloadCatalogueFile(CATALOGUE_FILE);
+  alert(
+    "Step 1: A file named catalogue.json was downloaded.\n\n" +
+      "Step 2: On GitHub, open your Dastoor-E-Qalam repo.\n\n" +
+      "Step 3: Click catalogue.json → pencil (Edit) → delete all → paste/upload the new file → Commit.\n\n" +
+      "Step 4: Wait 1–2 minutes, then open the site on another phone to check.\n\n" +
+      "After uploading, click “I uploaded to GitHub” on the site."
+  );
+}
+
+function downloadCatalogueFile(filename) {
+  const blob = new Blob([JSON.stringify(products, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function getFilteredProducts() {
