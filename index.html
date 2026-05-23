@@ -72,9 +72,22 @@
     <section class="admin-section hidden" id="admin-section" aria-labelledby="admin-heading">
       <div class="section-header">
         <h2 id="admin-heading">Manage catalogue</h2>
-        <button type="button" class="btn secondary" id="toggle-admin-btn" aria-expanded="false" aria-controls="admin-panel">
-          Add product
-        </button>
+        <div class="section-header-actions">
+          <button type="button" class="btn" id="publish-header-btn">Publish to website</button>
+          <button type="button" class="btn secondary" id="toggle-admin-btn" aria-expanded="false" aria-controls="admin-panel">
+            Add product
+          </button>
+        </div>
+      </div>
+
+      <div class="publish-banner hidden" id="publish-banner" role="status">
+        <p>
+          <strong>Not live yet.</strong> Visitors on other phones or browsers still see the old catalogue until you publish.
+        </p>
+        <div class="publish-banner-actions">
+          <button type="button" class="btn" id="publish-btn">Publish to website</button>
+          <button type="button" class="btn secondary" id="publish-done-btn">I uploaded to GitHub</button>
+        </div>
       </div>
 
       <div class="admin-panel hidden" id="admin-panel">
@@ -111,15 +124,17 @@
         </form>
 
         <div class="admin-tools">
-          <button type="button" class="btn secondary" id="export-btn">Export catalogue</button>
+          <button type="button" class="btn" id="publish-btn-panel">Publish to website</button>
+          <button type="button" class="btn secondary" id="export-btn">Download backup</button>
           <label class="import-label btn secondary">
-            Import catalogue
+            Import backup
             <input type="file" id="import-input" accept="application/json" hidden>
           </label>
           <button type="button" class="btn danger" id="reset-btn">Reset to samples</button>
         </div>
         <p class="note">
-          Changes are saved in this browser. Use <strong>Export catalogue</strong> before deploying updates so visitors see the same products when you import on another device.
+          After adding or editing products, click <strong>Publish to website</strong>, then upload the downloaded
+          <code>catalogue.json</code> to your GitHub repo (replace the old file). Everyone will then see your catalogue.
         </p>
       </div>
     </section>
@@ -194,3 +209,4 @@
   <script src="script.js"></script>
 </body>
 </html>
+
