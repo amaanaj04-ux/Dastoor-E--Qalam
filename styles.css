@@ -195,6 +195,13 @@ body {
   margin-bottom: 28px;
 }
 
+.section-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 h2 {
   margin: 0;
   font-family: var(--font-display);
@@ -342,6 +349,26 @@ h2 {
   margin-top: 48px;
   padding-top: 40px;
   border-top: 1px solid rgba(26, 20, 16, 0.08);
+}
+
+.publish-banner {
+  margin-top: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #fff8e8 0%, #fff 100%);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+}
+
+.publish-banner p {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  color: #4a4038;
+}
+
+.publish-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .admin-panel {
