@@ -1,0 +1,23 @@
+[
+  {
+    "id": "sample-frame-1",
+    "name": "Ayat ul Kursi Wall Frame",
+    "category": "Frame",
+    "price": 1800,
+    "image": "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=900&q=60"
+  },
+  {
+    "id": "sample-keychain-1",
+    "name": "Personalised Name Keychain",
+    "category": "Keychain",
+    "price": 350,
+    "image": "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=900&q=60"
+  },
+  {
+    "id": "sample-bookmark-1",
+    "name": "Floral Calligraphy Bookmark Set",
+    "category": "Bookmark",
+    "price": 250,
+    "image": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=900&q=60"
+  }
+]
