@@ -3,6 +3,8 @@ const PUBLISH_PENDING_KEY = "dastoorEQalamPublishPending";
 const AUTH_SESSION_KEY = "dastoorEQalamAdminSession";
 const ADMIN_EMAIL = "amaanaj04@gmail.com";
 const CATALOGUE_FILE = "catalogue.json";
+const MAX_UPLOAD_DIMENSION = 1200;
+const UPLOAD_IMAGE_QUALITY = 0.78;
 
 const sampleProducts = [
   {
@@ -524,7 +526,19 @@ function loadLocalDraft() {
 }
 
 function saveProducts() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  } catch (error) {
+    if (error?.name === "QuotaExceededError") {
+      alert(
+        "Storage limit reached. Uploaded photos are too large.\n\n" +
+          "Please re-upload a few products with smaller images (the app now compresses new uploads), " +
+          "or remove some old products and try again."
+      );
+      return;
+    }
+    throw error;
+  }
   if (isAdmin && catalogueFingerprint(products) !== liveCatalogueSnapshot) {
     localStorage.setItem(PUBLISH_PENDING_KEY, "1");
   }
@@ -626,10 +640,46 @@ function renderProducts() {
 }
 
 function fileToDataUrl(file) {
+  if (!file.type.startsWith("image/")) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Could not read image file."));
+      reader.readAsDataURL(file);
+    });
+  }
+
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Could not read image file."));
-    reader.readAsDataURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not process image."));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressed = canvas.toDataURL("image/jpeg", UPLOAD_IMAGE_QUALITY);
+      URL.revokeObjectURL(objectUrl);
+      resolve(compressed);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not process image."));
+    };
+
+    img.src = objectUrl;
   });
 }
+
