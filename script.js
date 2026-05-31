@@ -1,10 +1,13 @@
-const STORAGE_KEY = "dastoorEQalamProducts";
+const LEGACY_STORAGE_KEY = "dastoorEQalamProducts";
 const PUBLISH_PENDING_KEY = "dastoorEQalamPublishPending";
 const AUTH_SESSION_KEY = "dastoorEQalamAdminSession";
 const ADMIN_EMAIL = "amaanaj04@gmail.com";
 const CATALOGUE_FILE = "catalogue.json";
-const MAX_UPLOAD_DIMENSION = 1200;
-const UPLOAD_IMAGE_QUALITY = 0.78;
+const DB_NAME = "dastoorEQalam";
+const DB_VERSION = 1;
+const IDB_STORE = "catalogue";
+const MAX_UPLOAD_DIMENSION = 800;
+const UPLOAD_IMAGE_QUALITY = 0.72;
 
 const sampleProducts = [
   {
@@ -48,6 +51,7 @@ const imageHint = document.getElementById("image-hint");
 const exportBtn = document.getElementById("export-btn");
 const importInput = document.getElementById("import-input");
 const resetBtn = document.getElementById("reset-btn");
+const optimizeImagesBtn = document.getElementById("optimize-images-btn");
 const yearEl = document.getElementById("year");
 const editIdInput = document.getElementById("edit-id");
 const formSubmitBtn = document.getElementById("form-submit-btn");
@@ -97,7 +101,7 @@ async function initApp() {
     liveCatalogueSnapshot = catalogueFingerprint(sampleProducts);
   }
 
-  pendingLocalDraft = loadLocalDraft();
+  pendingLocalDraft = await loadLocalDraft();
   renderProducts();
   restoreAdminSession();
   initGoogleAuth();
@@ -148,46 +152,60 @@ productForm.addEventListener("submit", async (event) => {
   const category = categoryInput.value;
   const price = Number(priceInput.value);
 
-  if (editId) {
-    const index = products.findIndex((p) => p.id === editId);
-    if (index === -1) return;
+  try {
+    if (editId) {
+      const index = products.findIndex((p) => p.id === editId);
+      if (index === -1) return;
 
-    const updated = {
-      ...products[index],
-      name: label,
-      category,
-      price
-    };
+      const previous = products[index];
+      const updated = {
+        ...previous,
+        name: label,
+        category,
+        price
+      };
 
-    if (file) {
-      updated.image = await fileToDataUrl(file);
+      if (file) {
+        updated.image = await fileToDataUrl(file);
+      }
+
+      products[index] = updated;
+      const saved = await saveProducts();
+      if (!saved) {
+        products[index] = previous;
+        return;
+      }
+      renderProducts();
+      resetProductForm();
+      return;
     }
 
-    products[index] = updated;
-    saveProducts();
+    if (!file) {
+      alert("Please select a photograph for a new product.");
+      return;
+    }
+
+    const imageDataUrl = await fileToDataUrl(file);
+    const newProduct = {
+      id: crypto.randomUUID(),
+      name: label,
+      category,
+      price,
+      image: imageDataUrl
+    };
+
+    products.unshift(newProduct);
+    const saved = await saveProducts();
+    if (!saved) {
+      products = products.filter((p) => p.id !== newProduct.id);
+      return;
+    }
     renderProducts();
     resetProductForm();
-    return;
+  } catch (error) {
+    console.error(error);
+    alert("Could not add product. Try a smaller photo, or click “Shrink all photos” in the admin panel.");
   }
-
-  if (!file) {
-    alert("Please select a photograph for a new product.");
-    return;
-  }
-
-  const imageDataUrl = await fileToDataUrl(file);
-
-  products.unshift({
-    id: crypto.randomUUID(),
-    name: label,
-    category,
-    price,
-    image: imageDataUrl
-  });
-
-  saveProducts();
-  renderProducts();
-  resetProductForm();
 });
 
 cancelEditBtn.addEventListener("click", resetProductForm);
@@ -216,7 +234,8 @@ importInput.addEventListener("change", async (event) => {
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed)) throw new Error("Invalid format");
     products = parsed.filter(isValidProduct);
-    saveProducts();
+    const saved = await saveProducts();
+    if (!saved) return;
     renderProducts();
     alert("Backup imported. Click Publish to website so everyone can see these products.");
   } catch (error) {
@@ -232,8 +251,32 @@ resetBtn.addEventListener("click", () => {
     return;
   }
   products = [...sampleProducts];
-  saveProducts();
-  renderProducts();
+  void saveProducts().then((saved) => {
+    if (saved) renderProducts();
+  });
+});
+
+optimizeImagesBtn?.addEventListener("click", async () => {
+  if (!isAdmin) return;
+  if (!confirm("Compress all product photos? This frees space so you can add more products.")) {
+    return;
+  }
+  optimizeImagesBtn.disabled = true;
+  optimizeImagesBtn.textContent = "Shrinking photos…";
+  try {
+    await compressAllProductImages();
+    const saved = await saveProducts();
+    if (saved) {
+      renderProducts();
+      alert("Photos compressed. You can add more products now.");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Could not compress photos. Please try again.");
+  } finally {
+    optimizeImagesBtn.disabled = false;
+    optimizeImagesBtn.textContent = "Shrink all photos";
+  }
 });
 
 adminSigninBtn.addEventListener("click", () => {
@@ -254,7 +297,7 @@ authDialog.addEventListener("click", (event) => {
   if (event.target === authDialog) authDialog.close();
 });
 
-quickEditForm.addEventListener("submit", (event) => {
+quickEditForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isAdmin) return;
 
@@ -262,13 +305,18 @@ quickEditForm.addEventListener("submit", (event) => {
   const index = products.findIndex((p) => p.id === id);
   if (index === -1) return;
 
+  const previous = products[index];
   products[index] = {
-    ...products[index],
+    ...previous,
     name: quickEditName.value.trim(),
     price: Number(quickEditPrice.value)
   };
 
-  saveProducts();
+  const saved = await saveProducts();
+  if (!saved) {
+    products[index] = previous;
+    return;
+  }
   renderProducts();
   editDialog.close();
 });
@@ -427,8 +475,9 @@ function offerLocalDraftRecovery() {
 
   if (useDraft) {
     products = pendingLocalDraft;
-    saveProducts();
-    renderProducts();
+    void saveProducts().then((saved) => {
+      if (saved) renderProducts();
+    });
   }
 
   pendingLocalDraft = null;
@@ -513,36 +562,98 @@ async function fetchLiveCatalogue() {
   }
 }
 
-function loadLocalDraft() {
+function openCatalogueDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+  });
+}
+
+async function idbGetProducts() {
+  const db = await openCatalogueDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const request = tx.objectStore(IDB_STORE).get("products");
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbSetProducts(list) {
+  const db = await openCatalogueDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(list, "products");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function migrateLegacyLocalStorage() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!stored) return null;
     const parsed = JSON.parse(stored);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    return parsed.filter(isValidProduct);
+    const filtered = parsed.filter(isValidProduct);
+    if (filtered.length > 0) {
+      await idbSetProducts(filtered);
+    }
+    return filtered.length > 0 ? filtered : null;
+  } catch {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    return null;
+  }
+}
+
+async function loadLocalDraft() {
+  const migrated = await migrateLegacyLocalStorage();
+  if (migrated) return migrated;
+
+  try {
+    const stored = await idbGetProducts();
+    if (!stored || !Array.isArray(stored) || stored.length === 0) return null;
+    return stored.filter(isValidProduct);
   } catch {
     return null;
   }
 }
 
-function saveProducts() {
+async function saveProducts() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    await idbSetProducts(products);
   } catch (error) {
-    if (error?.name === "QuotaExceededError") {
+    console.warn("Save failed, trying to compress photos:", error);
+    try {
+      await compressAllProductImages();
+      await idbSetProducts(products);
+    } catch (retryError) {
+      console.error(retryError);
       alert(
-        "Storage limit reached. Uploaded photos are too large.\n\n" +
-          "Please re-upload a few products with smaller images (the app now compresses new uploads), " +
-          "or remove some old products and try again."
+        "Could not save your catalogue — photos use too much space.\n\n" +
+          "Click “Shrink all photos” in the admin panel, then try adding again."
       );
-      return;
+      return false;
     }
-    throw error;
   }
+
   if (isAdmin && catalogueFingerprint(products) !== liveCatalogueSnapshot) {
-    localStorage.setItem(PUBLISH_PENDING_KEY, "1");
+    try {
+      localStorage.setItem(PUBLISH_PENDING_KEY, "1");
+    } catch {
+      /* pending flag is optional */
+    }
   }
   updatePublishBanner();
+  return true;
 }
 
 function catalogueFingerprint(list) {
@@ -627,8 +738,9 @@ function renderProducts() {
     deleteBtn.addEventListener("click", () => {
       if (!confirm(`Remove "${product.name}" from the catalogue?`)) return;
       products = products.filter((item) => item.id !== product.id);
-      saveProducts();
-      renderProducts();
+      void saveProducts().then((saved) => {
+        if (saved) renderProducts();
+      });
     });
 
     card.addEventListener("dblclick", () => {
@@ -637,6 +749,40 @@ function renderProducts() {
 
     productGrid.appendChild(node);
   }
+}
+
+async function compressAllProductImages() {
+  for (let i = 0; i < products.length; i += 1) {
+    const product = products[i];
+    if (!product.image?.startsWith("data:image")) continue;
+    products[i] = {
+      ...product,
+      image: await compressDataUrl(product.image)
+    };
+  }
+}
+
+function compressDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not process image."));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", UPLOAD_IMAGE_QUALITY));
+    };
+    img.onerror = () => reject(new Error("Could not process image."));
+    img.src = dataUrl;
+  });
 }
 
 function fileToDataUrl(file) {
@@ -682,4 +828,3 @@ function fileToDataUrl(file) {
     img.src = objectUrl;
   });
 }
-
